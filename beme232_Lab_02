@@ -1,0 +1,105 @@
+import arcpy
+# Input database
+inputDB = 'U:\\Metz409GIS\\data\\ky_small_scale.gdb'
+
+# Create string representing output locations
+myData = 'U:\\Metz409GIS\\data'
+myDB = 'bluegrass_crops.gdb'
+outputDB = f'{myData}\\{myDB}'
+
+# Verify
+print(f'Input: {inputDB} Output: {outputDB}')
+
+
+
+
+# AOI in input database
+aoi = 'AOI_polygon'
+arcpy.env.workspace = inputDB
+# Input database
+arcpy.env.workspace = inputDB
+# Define output CRS
+ky = arcpy.SpatialReference(3089)
+wgs84 = arcpy.SpatialReference(4326)
+# Set the output CRS
+arcpy.env.outputCoordinateSystem = ky
+# Enable overwriting exist layers
+arcpy.env.overwriteOutput = True
+
+
+
+# Creating output database
+print("Creating workspace geodatabase...")
+# Check if it already exists
+if arcpy.Exists(outputDB):
+    print(f"Output database exists: {outputDB}")
+else:
+    arcpy.management.CreateFileGDB(myData, myDB)
+    print(f"Created output database: {outputDB}")
+    
+print(f"Using {arcpy.env.workspace} for input data.")
+
+
+
+# set the location of the intersection of Limestone Ave & Main St from GPS coordinates
+lon = -84.497020
+lat = 38.046375
+# create a single point using GPS coordinates
+point = arcpy.Point(lon, lat) 
+# create the point geometry using the WGS84 CRS
+ptGeometry = arcpy.PointGeometry(point, wgs84)
+# show point in the Notebook
+ptGeometry
+
+
+# save the point to a feature class in our workspace
+arcpy.management.CopyFeatures(ptGeometry, 'U:\\Metz409GIS\\data\\bluegrass_crops.gdb\\LimeMain')
+# input is ptGeometry, output is the street intersection
+
+
+
+# create a twenty-mile buffer around the point
+arcpy.analysis.Buffer("LimeMain", 'U:\\Metz409GIS\\data\\bluegrass_crops.gdb\\AOI_LimeMain', "20 miles")
+arcpy.FeatureEnvelopeToPolygon_management('AOI_LimeMain',"U:\\Metz409GIS\\data\\bluegrass_crops.gdb\\AOI_polygon")
+
+
+
+# Clip vector layers
+# Create a list of feature class names
+features = arcpy.ListFeatureClasses()
+# Loop over list of features
+for feature in features:
+    # Make output name
+    output = f"{outputDB}\\{feature}"
+    # If aoi, then don't clip; copy
+    if feature == aoi:
+        arcpy.management.Copy(feature, output)
+        print(f"Copying {feature} to {outputDB}")
+    else:
+        print(f"Clipping {feature} with {aoi} and outputting layer to {output} ...")
+        arcpy.analysis.Clip(feature, aoi, output)
+
+# Clip raster layers
+# Create a list of raster names
+rasters = arcpy.ListRasters()
+# Loop over list of rasters
+for raster in rasters:
+    output = f"{outputDB}\\{raster}"
+    print(f"Clipping {raster} with {aoi} and outputting layer to {output} ...")
+    arcpy.management.Clip(raster, "#", output, aoi, "#", "ClippingGeometry", "#")   
+print(f"done")
+
+
+
+sumCover = 0
+with arcpy.da.SearchCursor('NLCD_2016_land_cover', ['Count']) as cursor:
+    for row in cursor:
+        sumCover += row[0]
+with arcpy.da.SearchCursor('NLCD_2016_land_cover', ['Count', 'NLCD_Land_Cover_Class']) as cursor:
+    for row in cursor:
+        a = (row[0]/sumCover) * 100
+        b = (row[0] * 98.4**2) / 2.788e+7
+        a = round(a, 2)
+        b = round(b, 1)
+        c = f'{a}%, {b} sq mi of {row[1]}'
+        print(c)
