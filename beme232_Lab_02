@@ -87,7 +87,7 @@ for raster in rasters:
     output = f"{outputDB}\\{raster}"
     print(f"Clipping {raster} with {aoi} and outputting layer to {output} ...")
     arcpy.management.Clip(raster, "#", output, aoi, "#", "ClippingGeometry", "#")   
-print(f"done")
+print(f"done clipping")
 
 
 
